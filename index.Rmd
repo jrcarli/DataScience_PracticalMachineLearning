@@ -86,7 +86,7 @@ Based on our cross-validation findings, the average accuracy is 99.6%. Therefore
 ## Conclusions
 This random forest appears to be quite accurate and may suggest a degree of over-fitting. However, based on the cross-validation results and the Kaggle-style test data verification, this model is an effective predictor of how the weightlifting exercise was performed.
 
-## Apendix
+## Appendix
 Here we show how the sensor fields were obtained for the model.
 ```{r, eval=FALSE}
 fields <- NULL
