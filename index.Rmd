@@ -1,6 +1,6 @@
 ---
 title: "Weightlifting Technique Prediction"
-author: "Joe Carli"
+author: "jrcarli"
 date: "May 2015"
 output: html_document
 ---
