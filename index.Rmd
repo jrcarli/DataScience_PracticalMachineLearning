@@ -1,0 +1,111 @@
+---
+title: "Weightlifting Technique Prediction"
+author: "Joe Carli"
+date: "May 2015"
+output: html_document
+---
+```{r,echo=FALSE}
+knitr::opts_chunk$set(comment=NA, warning=FALSE, message=FALSE)
+```
+
+## Background
+Here we apply machine learning to a weightlifting dataset in an effort to predict how an exercise was performed. The data and project background come from research published in 2013 by Velloso et. al. The authors collected data from subjects performing dumbbell curls in one of five ways: correctly, throwing the elbow to the front, lifting the dumbbell only halfway, lowering the dumbbell only halfway, and throwing the hips to the front. Data was collected from sensors worn by the subjects on a belt (around the waist), on the forearm, on the hand, and also from a sensor attached to the dumbbell itself. Each sensor contained an inertial measurement unit capturing three-axis acceleration, gyroscope, and magnetometer data. More information on the dataset and a link to the authors' original paper may be found here: [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har).
+
+## Data Exploration
+Rather than starting with the authors' original data, we began with a training and testing set curated from the original by the Coursera Practical Machine Learning instructors. The training set may be found [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) and the testing set [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv). The test set was used for a separate model validation process (similar to those used in Kaggle competitions) and is not considered in this report--only the training dataset was used for model building and error estimation.
+
+The training dataset contained 19,622 observations of 160 variables. Many variables in the authors' original data were calculated and were provided only as "NA" in the training and test sets. As the authors explain, these variables included averages, variances, and others calculated from a time-based window of observations. For the purposes of our prediction algorithm, we ignored all calculated values (those that appeared as "NA" in the training and test sets), opted not to incorporate observation windows (including several timestamps), and ignored observation and user IDs. Ultimately 52 features were used. These were measurements of roll, pitch, yaw, accelerometer, magentometer, and gyroscopic datapoints. ``classe`` was the predicted value, a factor variable indicating which of the five weightlifting techniques (proper technique, elbows to the front, ...) was used for a given observation.
+
+Here we load the ``caret`` and ``randomForest`` libraries for data processing and model building, and also read in the training dataset.
+```{r}
+library(caret)
+library(randomForest)
+pml_training <- read.csv('pml-training.csv')
+```
+Please see the Appendix for information regarding field selection. The list of 52 features are refered to as ``fields`` throughout this report. 
+
+```{r, echo=FALSE}
+fields <- NULL
+locs <- c("belt","arm","dumbbell","forearm")
+axes <- c("x","y","z")
+for(i in c("yaw","pitch","roll")) {
+  for(j in locs) {
+    fields <- c(fields,paste(i,j,sep="_"))
+  }
+}
+for(i in c("gyros","accel","magnet")) {
+  for(j in locs) {
+    for(k in axes) {
+      fields <- c(fields,paste(i,j,k,sep="_"))
+    }
+  }
+}
+fields <- c(fields,"total_accel_belt","total_accel_arm","total_accel_dumbbell","total_accel_forearm")
+```
+
+## Model Building
+To begin model creation, we started by separating the labeled data into training and test sets using a 70:30 split.
+```{r}
+set.seed(1234)
+inTrain <- createDataPartition(y=pml_training$classe,p=0.7,list=FALSE)
+training <- pml_training[inTrain,]
+testing <- pml_training[-inTrain,]
+```
+
+We then used the ``randomForest()`` function to train a model using the 52 features to predict the ``classe`` factor variable.
+```{r}
+modFit <- randomForest(classe ~., data=training[,c(fields,"classe")])
+predictions <- predict(modFit, newdata=testing[,fields])
+confusionMatrix(predictions, testing$classe)
+```
+### Initial Findings
+Our random forest model appears to be over 99% accurate using the 70:30 training-to-test split. This suggests that the 52 features we chose do, in fact, accurately predict how the dumbbell weightlifting exercise was performed.
+
+## Cross-Validation
+To further validate our findings, we use a 10-fold cross-validation technique to better estimate model accuracy. The accuracy values from each prediction are averaged to provide the estimated accuracy.
+```{r}
+k = 10
+folds <- createFolds(pml_training$classe,k=k)
+totalAccuracy <- 0
+avgerageAccuracy <- 0
+for(fold in folds) {  
+  testset = pml_training[fold,c(fields,"classe")]
+  trainset = pml_training[-fold,c(fields,"classe")]
+  modFit <- randomForest(classe~., data=trainset)  
+  predictions <- predict(modFit,newdata=testset)
+  confMatrix <- confusionMatrix(predictions,testset$classe)  
+  totalAccuracy <- totalAccuracy + confMatrix$overall[1]
+}
+averageAccuracy <- totalAccuracy/k
+print(averageAccuracy)
+```
+
+### Expected Out of Sample Error
+Based on our cross-validation findings, the average accuracy is 99.6%. Therefore, we anticipate a 0.4% out of sample error.
+
+## Conclusions
+This random forest appears to be quite accurate and may suggest a degree of over-fitting. However, based on the cross-validation results and the Kaggle-style test data verification, this model is an effective predictor of how the weightlifting exercise was performed.
+
+## Apendix
+Here we show how the sensor fields were obtained for the model.
+```{r, eval=FALSE}
+fields <- NULL
+locs <- c("belt","arm","dumbbell","forearm")
+axes <- c("x","y","z")
+for(i in c("yaw","pitch","roll")) {
+  for(j in locs) {
+    fields <- c(fields,paste(i,j,sep="_"))
+  }
+}
+for(i in c("gyros","accel","magnet")) {
+  for(j in locs) {
+    for(k in axes) {
+      fields <- c(fields,paste(i,j,k,sep="_"))
+    }
+  }
+}
+fields <- c(fields,"total_accel_belt","total_accel_arm","total_accel_dumbbell","total_accel_forearm")
+```
+```{r}
+fields
+```
